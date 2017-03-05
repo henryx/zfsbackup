@@ -1,0 +1,49 @@
+#!/bin/sh
+
+ZPOOL="/usr/sbin/zpool"
+ZFS="/usr/sbin/zfs"
+CURRENT=$(date "+%Y%m%d")
+#OLD=$(date -d "30 days ago" "+%F")
+
+POOLS=("tank")
+VOLUMES=("tank/volume")
+
+backup() {
+    for FILESYSTEM in $($ZFS list -H -o name -t filesystem);
+    do
+        if [[ " ${VOLUMES[@]} " =~ " ${FILESYSTEM} " ]]; then
+            $ZFS snapshot -r ${FILESYSTEM}@bak-${CURRENT}
+        fi
+    done
+}
+
+clean() {
+    for SNAPSHOT in $($ZFS list -H -o name -t snapshot);
+    do
+        if [[ " ${VOLUMES[@]} " =~ " ${SNAPSHOT%%@*} " ]]; then
+            if [[ $SNAPSHOT =~ .*bak.* ]]; then
+                OLD=$(echo $SNAPSHOT | cut -d'-' -f 2)
+                DAYS=$(( ($(date -d $CURRENT +%s) - $(date -d $OLD +%s))/(60*60*24) ))
+                if (( $DAYS > 30 )); then
+                    $ZFS destroy ${SNAPSHOT%%@*}@bak-${OLD}
+                fi
+            fi
+        fi
+    done
+}
+
+check() {
+    if [[ " $(date '+%d') " == " 01 " ]]; then
+        for POOL in $POOLS;
+        do
+            DONE=$($ZPOOL status $POOL | /usr/bin/egrep -q "scrub completed|none requested")
+            if [[ -n "$DONE" ]]; then
+                $ZPOOL scrub $POOL
+            fi
+        done
+    fi
+}
+
+backup
+clean
+check

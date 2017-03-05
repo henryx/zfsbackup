@@ -1,0 +1,11 @@
+[Unit]
+Description=ZFS Backup service
+After=zfs.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/sbin/zfsbackup
+User=root
+
+[Install]
+WantedBy=multi-user.target 
